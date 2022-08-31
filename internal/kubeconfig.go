@@ -3,7 +3,8 @@ package internal
 import (
 	"encoding/base64"
 
-	"gopkg.in/yaml.v2"
+	// use this yaml provider, otherwise it gets messed up
+	"sigs.k8s.io/yaml"
 
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
