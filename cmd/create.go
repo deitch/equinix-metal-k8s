@@ -24,7 +24,7 @@ const (
 var (
 	controlPlaneCount, workerCount               int
 	controlPlanePlan, workerPlan                 string
-	metro, os                                    string
+	metro, operatingSystem                       string
 	port                                         int
 	waitDeviceReady, waitKubeReady, waitInterval int
 )
@@ -43,7 +43,7 @@ var createCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// get EQXM client
 		client := packngo.NewClientWithAuth("equinix-metal-k8s", token, nil)
-		client.UserAgent = fmt.Sprintf("equinix-metal-k8s/%s %s", version, client.UserAgent)
+		client.UserAgent = fmt.Sprintf("equinix-metal-k8s/%s %s", client.UserAgent, client.UserAgent)
 
 		// create CA: private key (RSA 2048), public key, self-signed cert, get its cert hash
 		caPrivateKey, caPublicKey, caCert, err := internal.CreateCA("/CN=kubernetes", internal.RSA, 2048, 365*10)
@@ -126,7 +126,7 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 			Hostname:  hostname,
 			Plan:      controlPlanePlan,
 			Metro:     metro,
-			OS:        os,
+			OS:        operatingSystem,
 			ProjectID: project,
 			UserData:  userdata,
 		})
@@ -213,7 +213,7 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 				Hostname:  hostname,
 				Plan:      controlPlanePlan,
 				Metro:     metro,
-				OS:        os,
+				OS:        operatingSystem,
 				ProjectID: project,
 				UserData:  userdata,
 			})
@@ -238,7 +238,7 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 				Hostname:  hostname,
 				Plan:      workerPlan,
 				Metro:     metro,
-				OS:        os,
+				OS:        operatingSystem,
 				ProjectID: project,
 				UserData:  userdata,
 			})
@@ -264,7 +264,7 @@ func createInit() {
 	createCmd.Flags().IntVar(&controlPlaneCount, "control-plane-count", 1, "number of control plane nodes")
 	createCmd.Flags().IntVar(&workerCount, "worker-count", 0, "number of worker nodes")
 	createCmd.Flags().StringVar(&metro, "metro", "da", "metro in which to create cluster")
-	createCmd.Flags().StringVar(&os, "os", "ubuntu_16_04", "slug of OS to use to create cluster")
+	createCmd.Flags().StringVar(&operatingSystem, "os", "ubuntu_16_04", "slug of OS to use to create cluster")
 	createCmd.Flags().StringVar(&controlPlanePlan, "control-plane-plan", "c3.small.x86", "device type to use for control plane nodes")
 	createCmd.Flags().StringVar(&workerPlan, "worker-plan", "c3.small.x86", "device type to use for worker nodes")
 	createCmd.Flags().IntVar(&port, "port", 6443, "port on which kube-apiserver should listen")
