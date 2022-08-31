@@ -223,7 +223,7 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 
 		// create other control plane nodes
 		userdata = fmt.Sprintf(`#!/bin/sh
-		curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s join -r containerd -a "%s:%d" -b "%s" -h "%s" -e "%s"
+		curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s join -r containerd -a "%s:%d" -b "%s" -s "%s" -e "%s"
 		`, eipAddress, port, token, caCertHash, certsEncryptionKey)
 		for i := 2; i <= controlPlaneCount; i++ {
 			hostname := fmt.Sprintf("k8s-master-%02d", i)
@@ -249,7 +249,7 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 
 		// create worker nodes
 		userdata = fmt.Sprintf(`#!/bin/sh
-		curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s worker -r containerd -a "%s:%d" -b "%s" -h "%s"
+		curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s worker -r containerd -a "%s:%d" -b "%s" -s "%s"
 		`, eipAddress, port, token, caCertHash)
 		for i := 1; i <= workerCount; i++ {
 			hostname := fmt.Sprintf("k8s-worker-%02d", i)
