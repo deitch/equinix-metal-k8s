@@ -42,10 +42,13 @@ var createCmd = &cobra.Command{
 	Long:  `Initialize a Kubernetes cluster on Equinix Metal.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// get EQXM client
+		log.Print("creating Equinix Metal client...")
 		client := packngo.NewClientWithAuth("equinix-metal-k8s", token, nil)
 		client.UserAgent = fmt.Sprintf("equinix-metal-k8s/%s %s", version, client.UserAgent)
+		log.Println("done")
 
 		// create CA: private key (RSA 2048), public key, self-signed cert, get its cert hash
+		log.Print("creating CA key and certificate...")
 		caPrivateKey, caPublicKey, caCert, err := internal.CreateCA("/CN=kubernetes", internal.RSA, 2048, 365*10)
 		if err != nil {
 			log.Fatal(err)
@@ -59,14 +62,18 @@ var createCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 		caCertHash := fmt.Sprintf("sha256:%x", sha256.Sum256(caKeyDER))
+		log.Println("done")
 
 		// generate certs encryption key, equivalent to `kubeadm certs certificate-key`, which should be 32 byte = 64 chars in hex
+		log.Print("creating CA certificate encryption key...")
 		certsEncryptionKey, err := internal.GenerateCertsEncryptionKey()
 		if err != nil {
 			log.Fatal(err)
 		}
+		log.Println("done")
 
 		// create client: private key (RSA 2048), CSR, sign it via CA
+		log.Print("creating kubernetes-admin client key and certificate...")
 		clientKey, clientCert, err := internal.CreateClient("/CN=kubernetes-admin/O=system:masters", internal.RSA, 2048, 365, caCertificate, caPrivateKey)
 		if err != nil {
 			log.Fatal(err)
@@ -89,14 +96,18 @@ var createCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal(err)
 		}
+		log.Println("done")
 
 		// generate bootstrap token, equivalent to `kubeadm token create`, which should give [a-z0-9]{6}.[a-z0-9]{16}
+		log.Print("creating bootstrap token...")
 		token, err := internal.GenerateBootstrapToken()
 		if err != nil {
 			log.Fatal(err)
 		}
+		log.Println("done")
 
 		// request EIP
+		log.Print("requesting EIP...")
 		res, _, err := client.ProjectIPs.Create(project, &packngo.IPReservationCreateRequest{
 			Type:     packngo.PublicIPv4,
 			Quantity: 1,
@@ -107,18 +118,21 @@ var createCmd = &cobra.Command{
 		}
 		eipAddress := res.Address
 		eipCidr := res.CIDR
+		log.Printf("done %s %s\n", eipAddress, res.ID)
 
 		// create kubeconfig using CA cert, client key, client cert, EIP endpoint
+		log.Print("creating kubeconfig...")
 		kubeconfig, err := internal.GenerateKubeconfig(caCertPEM, clientCertPEM, clientKeyPEM, eipAddress)
 		if err != nil {
 			log.Fatal(err)
 		}
+		log.Printf("done\n%s", kubeconfig)
 
 		// to track all of our nodes
 		var nodes []node
 		// deploy init control plane node
-		userdata := fmt.Sprintf(`
-#!/bin/sh
+		log.Print("creating initial control plan node...")
+		userdata := fmt.Sprintf(`#!/bin/sh
 curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s init -r containerd -a "%s:%d" -b "%s" -k "%s" -c "%s" -e "%s"
 `, eipAddress, port, token, base64.StdEncoding.EncodeToString(caKeyPEM), base64.StdEncoding.EncodeToString(caCertPEM), certsEncryptionKey)
 		hostname := fmt.Sprintf("k8s-master-%02d", 1)
@@ -139,8 +153,10 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 			purpose:  "control plane",
 		})
 		devID := dev.ID
+		log.Printf("done %s\n", devID)
 
 		// wait for init control plane device to be ready
+		log.Printf("waiting %d seconds for initial control plane node to be ready...", waitDeviceReady)
 		ticker := time.NewTicker(time.Duration(waitInterval) * time.Second)
 	waitForDevice:
 		for {
@@ -151,7 +167,7 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 					log.Printf("error getting device, but still waiting: %v", err)
 				}
 				if dev.State == "active" {
-					log.Printf("device ready")
+					log.Println("device ready")
 					break waitForDevice
 				}
 			case <-time.After(time.Duration(waitDeviceReady) * time.Second):
@@ -163,11 +179,13 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 		ticker.Stop()
 
 		// assign EIP to init control plane node
+		log.Printf("assigning EIP %s/%d to initial control plane node %s...", eipAddress, eipCidr, devID)
 		if _, _, err := client.DeviceIPs.Assign(devID, &packngo.AddressStruct{
 			Address: fmt.Sprintf("%s/%d", eipAddress, eipCidr),
 		}); err != nil {
 			log.Fatal(err)
 		}
+		log.Println("done")
 
 		// wait for kube-apiserver to be ready
 		tr := &http.Transport{
@@ -175,6 +193,7 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 		}
 		httpClient := &http.Client{Transport: tr}
 		healthAddress := fmt.Sprintf("https://%s:%d/healthz", eipAddress, port)
+		log.Printf("waiting for kube-apiserver to be ready at %s...", healthAddress)
 
 		ticker = time.NewTicker(time.Duration(waitInterval) * time.Second)
 	waitForKubernetes:
@@ -186,7 +205,7 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 				case err != nil:
 					log.Printf("error getting kubernetes health, still waiting: %v", err)
 				case res.StatusCode == http.StatusOK:
-					log.Print("Kubernetes ready")
+					log.Println("Kubernetes ready")
 					break waitForKubernetes
 				default:
 					log.Printf("Kubernetes API server responding, but did not return health %d, waiting", res.StatusCode)
@@ -203,12 +222,12 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 		// apply CNI
 
 		// create other control plane nodes
+		userdata = fmt.Sprintf(`#!/bin/sh
+		curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s join -r containerd -a "%s:%d" -b "%s" -h "%s" -e "%s"
+		`, eipAddress, port, token, caCertHash, certsEncryptionKey)
 		for i := 2; i <= controlPlaneCount; i++ {
-			userdata := fmt.Sprintf(`
-#!/bin/sh
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s join -r containerd -a "%s:%d" -b "%s" -h "%s" -e "%s"
-`, eipAddress, port, token, caCertHash, certsEncryptionKey)
 			hostname := fmt.Sprintf("k8s-master-%02d", i)
+			log.Printf("creating control plane node %s ...", hostname)
 			dev, _, err := client.Devices.Create(&packngo.DeviceCreateRequest{
 				Hostname:  hostname,
 				Plan:      controlPlanePlan,
@@ -220,6 +239,7 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 			if err != nil {
 				log.Fatal(err)
 			}
+			log.Println("done")
 			nodes = append(nodes, node{
 				hostname: hostname,
 				id:       dev.ID,
@@ -228,12 +248,12 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 		}
 
 		// create worker nodes
+		userdata = fmt.Sprintf(`#!/bin/sh
+		curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s worker -r containerd -a "%s:%d" -b "%s" -h "%s"
+		`, eipAddress, port, token, caCertHash)
 		for i := 1; i <= workerCount; i++ {
-			userdata := fmt.Sprintf(`
-#!/bin/sh
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s worker -r containerd -a "%s:%d" -b "%s" -h "%s"
-`, eipAddress, port, token, caCertHash)
 			hostname := fmt.Sprintf("k8s-worker-%02d", i)
+			log.Printf("creating worker node %s ...", hostname)
 			dev, _, err := client.Devices.Create(&packngo.DeviceCreateRequest{
 				Hostname:  hostname,
 				Plan:      workerPlan,
@@ -245,17 +265,20 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 			if err != nil {
 				log.Fatal(err)
 			}
+			log.Println("done")
 			nodes = append(nodes, node{
 				hostname: hostname,
 				id:       dev.ID,
 				purpose:  "worker",
 			})
 		}
+		fmt.Println("nodes")
 		fmt.Printf("%s\t%s\t%s\t%s\n", "Purpose", "Hostname", "ID", "IP")
 		for _, node := range nodes {
 			fmt.Printf("%s\t%s\t%s\t%s\n", node.purpose, node.hostname, node.id, node.ip)
 		}
 		// output kubeconfig
+		fmt.Println("kubeconfig")
 		fmt.Printf("%s\n", kubeconfig)
 	},
 }
