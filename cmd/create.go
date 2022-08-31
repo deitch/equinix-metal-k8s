@@ -43,7 +43,7 @@ var createCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// get EQXM client
 		client := packngo.NewClientWithAuth("equinix-metal-k8s", token, nil)
-		client.UserAgent = fmt.Sprintf("equinix-metal-k8s/%s %s", client.UserAgent, client.UserAgent)
+		client.UserAgent = fmt.Sprintf("equinix-metal-k8s/%s %s", version, client.UserAgent)
 
 		// create CA: private key (RSA 2048), public key, self-signed cert, get its cert hash
 		caPrivateKey, caPublicKey, caCert, err := internal.CreateCA("/CN=kubernetes", internal.RSA, 2048, 365*10)
