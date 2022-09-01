@@ -3,8 +3,8 @@ package internal
 import (
 
 	// use this yaml provider, otherwise it gets messed up
-	"sigs.k8s.io/yaml"
 
+	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
@@ -36,5 +36,5 @@ func GenerateKubeconfig(caCertPEM, clientCertPEM, clientKeyPEM []byte, address s
 		CurrentContext: "default-context",
 		AuthInfos:      authinfos,
 	}
-	return yaml.Marshal(&clientConfig)
+	return clientcmd.Write(clientConfig)
 }
