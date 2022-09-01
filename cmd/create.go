@@ -133,7 +133,8 @@ var createCmd = &cobra.Command{
 		// deploy init control plane node
 		log.Print("creating initial control plan node...")
 		userdata := fmt.Sprintf(`#!/bin/sh
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s init -r containerd -a "%s:%d" -b "%s" -k "%s" -c "%s" -e "%s"
+ip=$(curl -s https://metadata.platformequinix.com/2009-04-04/meta-data/public-ipv4)
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s init -r containerd -a "%s:%d" -b "%s" -k "%s" -c "%s" -e "%s" -i "${ip}"
 `, eipAddress, port, token, base64.StdEncoding.EncodeToString(caKeyPEM), base64.StdEncoding.EncodeToString(caCertPEM), certsEncryptionKey)
 		hostname := fmt.Sprintf("k8s-master-%02d", 1)
 		dev, _, err := client.Devices.Create(&packngo.DeviceCreateRequest{
@@ -223,7 +224,8 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 
 		// create other control plane nodes
 		userdata = fmt.Sprintf(`#!/bin/sh
-		curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s join -r containerd -a "%s:%d" -b "%s" -s "%s" -e "%s"
+		ip=$(curl -s https://metadata.platformequinix.com/2009-04-04/meta-data/public-ipv4)
+		curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s join -r containerd -a "%s:%d" -b "%s" -s "%s" -e "%s" -i "${ip}"
 		`, eipAddress, port, token, caCertHash, certsEncryptionKey)
 		for i := 2; i <= controlPlaneCount; i++ {
 			hostname := fmt.Sprintf("k8s-master-%02d", i)
@@ -249,7 +251,8 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 
 		// create worker nodes
 		userdata = fmt.Sprintf(`#!/bin/sh
-		curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s worker -r containerd -a "%s:%d" -b "%s" -s "%s"
+		ip=$(curl -s https://metadata.platformequinix.com/2009-04-04/meta-data/public-ipv4)
+		curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s worker -r containerd -a "%s:%d" -b "%s" -s "%s" -i "${ip}"
 		`, eipAddress, port, token, caCertHash)
 		for i := 1; i <= workerCount; i++ {
 			hostname := fmt.Sprintf("k8s-worker-%02d", i)
