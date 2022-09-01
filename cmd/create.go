@@ -16,15 +16,18 @@ import (
 )
 
 const (
-	defaultWaitDeviceReady = 300
-	defaultWaitKubeReady   = 300
-	defaultWaitInterval    = 15
+	defaultWaitDeviceReady  = 300
+	defaultWaitKubeReady    = 300
+	defaultWaitInterval     = 15
+	defaultInstallerVersion = "d18a52c0c59340692bd01aa711134caacd279451"
+	installerRepo           = "https://github.com/deitch/kubeadm-install"
 )
 
 var (
 	controlPlaneCount, workerCount               int
 	controlPlanePlan, workerPlan                 string
 	metro, operatingSystem                       string
+	installerVersion                             string
 	port                                         int
 	waitDeviceReady, waitKubeReady, waitInterval int
 )
@@ -128,14 +131,17 @@ var createCmd = &cobra.Command{
 		}
 		log.Printf("done\n%s", kubeconfig)
 
+		// set installer URL
+		installerURL := fmt.Sprintf("https://raw.githubusercontent.com/deitch/kubeadm-install/%s/install.sh", installerVersion)
+		log.Printf("using installer from %s", installerURL)
 		// to track all of our nodes
 		var nodes []node
 		// deploy init control plane node
 		log.Print("creating initial control plan node...")
 		userdata := fmt.Sprintf(`#!/bin/sh
 ip=$(curl -s https://metadata.platformequinix.com/2009-04-04/meta-data/public-ipv4)
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s init -r containerd -a "%s:%d" -b "%s" -k "%s" -c "%s" -e "%s" -i "${ip}"
-`, eipAddress, port, token, base64.StdEncoding.EncodeToString(caKeyPEM), base64.StdEncoding.EncodeToString(caCertPEM), certsEncryptionKey)
+curl %s | sh -s init -r containerd -a "%s:%d" -b "%s" -k "%s" -c "%s" -e "%s" -i "${ip}"
+`, installerURL, eipAddress, port, token, base64.StdEncoding.EncodeToString(caKeyPEM), base64.StdEncoding.EncodeToString(caCertPEM), certsEncryptionKey)
 		hostname := fmt.Sprintf("k8s-master-%02d", 1)
 		dev, _, err := client.Devices.Create(&packngo.DeviceCreateRequest{
 			Hostname:  hostname,
@@ -225,8 +231,8 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 		// create other control plane nodes
 		userdata = fmt.Sprintf(`#!/bin/sh
 		ip=$(curl -s https://metadata.platformequinix.com/2009-04-04/meta-data/public-ipv4)
-		curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s join -r containerd -a "%s:%d" -b "%s" -s "%s" -e "%s" -i "${ip}"
-		`, eipAddress, port, token, caCertHash, certsEncryptionKey)
+		curl %s | sh -s join -r containerd -a "%s:%d" -b "%s" -s "%s" -e "%s" -i "${ip}"
+		`, installerURL, eipAddress, port, token, caCertHash, certsEncryptionKey)
 		for i := 2; i <= controlPlaneCount; i++ {
 			hostname := fmt.Sprintf("k8s-master-%02d", i)
 			log.Printf("creating control plane node %s ...", hostname)
@@ -252,8 +258,8 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 		// create worker nodes
 		userdata = fmt.Sprintf(`#!/bin/sh
 		ip=$(curl -s https://metadata.platformequinix.com/2009-04-04/meta-data/public-ipv4)
-		curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s worker -r containerd -a "%s:%d" -b "%s" -s "%s" -i "${ip}"
-		`, eipAddress, port, token, caCertHash)
+		curl %s | sh -s worker -r containerd -a "%s:%d" -b "%s" -s "%s" -i "${ip}"
+		`, installerURL, eipAddress, port, token, caCertHash)
 		for i := 1; i <= workerCount; i++ {
 			hostname := fmt.Sprintf("k8s-worker-%02d", i)
 			log.Printf("creating worker node %s ...", hostname)
@@ -293,6 +299,7 @@ func createInit() {
 	createCmd.Flags().StringVar(&operatingSystem, "os", "ubuntu_16_04", "slug of OS to use to create cluster")
 	createCmd.Flags().StringVar(&controlPlanePlan, "control-plane-plan", "c3.small.x86", "device type to use for control plane nodes")
 	createCmd.Flags().StringVar(&workerPlan, "worker-plan", "c3.small.x86", "device type to use for worker nodes")
+	createCmd.Flags().StringVar(&installerVersion, "installer-version", defaultInstallerVersion, fmt.Sprintf("commit or tag of installer version to use from %s", installerRepo))
 	createCmd.Flags().IntVar(&port, "port", 6443, "port on which kube-apiserver should listen")
 	createCmd.Flags().IntVar(&waitDeviceReady, "wait-device", defaultWaitDeviceReady, "how long to wait for device to be ready from Equinix Metal, in seconds")
 	createCmd.Flags().IntVar(&waitKubeReady, "wait-kubernetes", defaultWaitKubeReady, "how long to wait for kubernetes to be ready after the device is ready, in seconds")
