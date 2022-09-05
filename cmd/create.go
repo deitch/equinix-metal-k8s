@@ -50,6 +50,16 @@ var createCmd = &cobra.Command{
 		client.UserAgent = fmt.Sprintf("equinix-metal-k8s/%s %s", version, client.UserAgent)
 		log.Println("done")
 
+		// create a tag
+		log.Print("generating a structured random tag")
+		rnd, err := internal.RandomHex(8)
+		if err != nil {
+			log.Fatal(err)
+		}
+		tag := fmt.Sprintf("builder=%s-%s", "equinix-metal-k8s", rnd)
+		log.Printf(" %s ", tag)
+		log.Println("done")
+
 		// create CA: private key (RSA 2048), public key, self-signed cert, get its cert hash
 		log.Print("creating CA key and certificate...")
 		caPrivateKey, caPublicKey, caCert, err := internal.CreateCA("/CN=kubernetes", internal.RSA, 2048, 365*10)
@@ -115,6 +125,7 @@ var createCmd = &cobra.Command{
 			Type:     packngo.PublicIPv4,
 			Quantity: 1,
 			Metro:    &metro,
+			Tags:     []string{tag},
 		})
 		if err != nil {
 			log.Fatal(err)
@@ -150,6 +161,7 @@ curl %s | sh -s init -r containerd -a "%s:%d" -b "%s" -k "%s" -c "%s" -e "%s" -i
 			OS:        operatingSystem,
 			ProjectID: project,
 			UserData:  userdata,
+			Tags:      []string{tag},
 		})
 		if err != nil {
 			log.Fatal(err)
@@ -243,6 +255,7 @@ curl %s | sh -s init -r containerd -a "%s:%d" -b "%s" -k "%s" -c "%s" -e "%s" -i
 				OS:        operatingSystem,
 				ProjectID: project,
 				UserData:  userdata,
+				Tags:      []string{tag},
 			})
 			if err != nil {
 				log.Fatal(err)
@@ -270,6 +283,7 @@ curl %s | sh -s init -r containerd -a "%s:%d" -b "%s" -k "%s" -c "%s" -e "%s" -i
 				OS:        operatingSystem,
 				ProjectID: project,
 				UserData:  userdata,
+				Tags:      []string{tag},
 			})
 			if err != nil {
 				log.Fatal(err)
@@ -289,6 +303,8 @@ curl %s | sh -s init -r containerd -a "%s:%d" -b "%s" -k "%s" -c "%s" -e "%s" -i
 		// output kubeconfig
 		fmt.Println("kubeconfig")
 		fmt.Printf("%s\n", kubeconfig)
+		fmt.Println()
+		fmt.Printf("tag: %s\n", tag)
 	},
 }
 
