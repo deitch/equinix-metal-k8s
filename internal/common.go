@@ -185,3 +185,11 @@ func PublicPEMToDER(pubKeyPEM []byte) ([]byte, error) {
 	}
 	return keyDER, nil
 }
+
+func RandomHex(size int) (string, error) {
+	b, err := randomBytes(size)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", b), nil
+}
