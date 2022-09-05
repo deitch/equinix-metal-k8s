@@ -40,9 +40,9 @@ type node struct {
 }
 
 var createCmd = &cobra.Command{
-	Use:   "init",
-	Short: "initialize a Kubernetes cluster",
-	Long:  `Initialize a Kubernetes cluster on Equinix Metal.`,
+	Use:   "create",
+	Short: "create and initialize a Kubernetes cluster",
+	Long:  `Create and initialize a Kubernetes cluster on Equinix Metal.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// get EQXM client
 		log.Print("creating Equinix Metal client...")
