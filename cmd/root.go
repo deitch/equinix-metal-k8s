@@ -49,6 +49,9 @@ func init() {
 	rootCmd.AddCommand(createCmd)
 	createInit()
 
+	rootCmd.AddCommand(destroyCmd)
+	destroyInit()
+
 	rootCmd.PersistentFlags().StringVar(&project, "project", "", "project ID")
 	rootCmd.PersistentFlags().StringVar(&token, "token", "", fmt.Sprintf("Equinix Metal token, overrides env var %s, which overrides %s", MetalTokenEnvVar, MetalConfigFile))
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "print lots of output to stderr")
